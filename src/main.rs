@@ -6,7 +6,7 @@ fn main() {
     let args: Vec<_> = env::args().collect();
     let home = env::var("HOME").unwrap();
 
-    let config = fs::read_to_string("~/.config/ley/ley.toml".replace("~", &home))
+    let config = fs::read_to_string("~/.config/ley/ley.toml".replace('~', &home))
         .expect("error reading config file")
         .parse::<Table>()
         .expect("not a valid toml file");
@@ -15,7 +15,7 @@ fn main() {
         .expect("game not found");
 
     if let Some(Value::String(val)) = game.get("prefix") {
-        env::set_var("WINEPREFIX", val.replace("~", &home));
+        env::set_var("WINEPREFIX", val.replace('~', &home));
     }
 
     if let Some(Value::String(val)) = game.get("arch") {
@@ -35,7 +35,7 @@ fn main() {
     }
 
     if let Some(Value::String(exe)) = game.get("exe") {
-        let exe = exe.replace("~", &home);
+        let exe = exe.replace('~', &home);
 
         let mut game_args = vec![exe.as_str()];
 
