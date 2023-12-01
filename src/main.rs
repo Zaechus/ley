@@ -24,6 +24,10 @@ fn main() {
         }
     }
 
+    if let Some(Value::String(dir)) = game.get("dir") {
+        env::set_current_dir(dir.replace('~', &home)).unwrap();
+    }
+
     if let Some(Value::String(accel)) = game.get("mouse_speed") {
         if sway {
             Command::new("swaymsg")
@@ -60,15 +64,23 @@ fn main() {
         env::set_var("WINEESYNC", "1");
     }
 
+    let runner = if let Some(Value::String(runner)) = game.get("runner") {
+        runner
+    } else {
+        "wine"
+    };
+
+    let mut game_args = Vec::new();
+
     if let Some(Value::String(exe)) = game.get("exe") {
-        let exe = exe.replace('~', &home);
-
-        let mut game_args = vec![exe.as_str()];
-
-        if let Some(Value::Array(val)) = game.get("args") {
-            game_args.extend(val.iter().map(|v| v.as_str().unwrap()));
-        }
-
-        Command::new("wine").args(game_args).spawn().unwrap();
+        game_args.push(exe.replace('~', &home));
     }
+
+    if let Some(Value::String(val)) = game.get("args") {
+        game_args.extend(val.split_whitespace().map(str::to_owned));
+    } else if let Some(Value::Array(val)) = game.get("args") {
+        game_args.extend(val.iter().map(|v| v.to_string()));
+    }
+
+    Command::new(runner).args(game_args).spawn().unwrap();
 }
