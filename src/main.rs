@@ -5,6 +5,7 @@ use toml::{Table, Value};
 fn main() {
     let args: Vec<_> = env::args().collect();
     let home = env::var("HOME").unwrap();
+    let sway = env::var("XDG_CURRENT_DESKTOP").as_deref() == Ok("sway");
 
     let config = fs::read_to_string("~/.config/ley/ley.toml".replace('~', &home))
         .expect("error reading config file")
@@ -13,6 +14,31 @@ fn main() {
     let game = config
         .get(args.get(1).expect("expected a game id"))
         .expect("game not found");
+
+    if let Some(Value::String(res)) = game.get("res") {
+        if sway {
+            Command::new("swaymsg")
+                .args(["output", "-", "mode", res])
+                .spawn()
+                .unwrap();
+        }
+    }
+
+    if let Some(Value::String(accel)) = game.get("mouse_speed") {
+        if sway {
+            Command::new("swaymsg")
+                .args([
+                    "input",
+                    "type:pointer",
+                    "pointer_accel",
+                    &format!("'{}'", accel),
+                ])
+                .spawn()
+                .unwrap();
+        }
+    }
+
+    env::set_var("WINEDEBUG", "-all");
 
     if let Some(Value::String(val)) = game.get("prefix") {
         env::set_var("WINEPREFIX", val.replace('~', &home));
