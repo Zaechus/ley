@@ -1,4 +1,4 @@
-use std::{env, fs, process::Command};
+use std::{env, fs, path::Path, process::Command};
 
 use toml::{Table, Value};
 
@@ -7,7 +7,7 @@ fn main() {
     let home = env::var("HOME").unwrap();
     let sway = env::var("XDG_CURRENT_DESKTOP").as_deref() == Ok("sway");
 
-    let config = fs::read_to_string("~/.config/ley/ley.toml".replace('~', &home))
+    let config = fs::read_to_string(expand_tilde("~/.config/ley/ley.toml", &home))
         .expect("error reading config file")
         .parse::<Table>()
         .expect("not a valid toml file");
@@ -22,10 +22,6 @@ fn main() {
                 .spawn()
                 .unwrap();
         }
-    }
-
-    if let Some(Value::String(dir)) = game.get("dir") {
-        env::set_current_dir(dir.replace('~', &home)).unwrap();
     }
 
     if let Some(Value::String(accel)) = game.get("mouse_speed") {
@@ -44,10 +40,6 @@ fn main() {
 
     env::set_var("WINEDEBUG", "-all");
 
-    if let Some(Value::String(val)) = game.get("prefix") {
-        env::set_var("WINEPREFIX", val.replace('~', &home));
-    }
-
     if let Some(Value::String(val)) = game.get("arch") {
         if val == "win32" {
             env::set_var("WINEARCH", "win32");
@@ -64,23 +56,66 @@ fn main() {
         env::set_var("WINEESYNC", "1");
     }
 
+    let mut command = Vec::new();
+
     let runner = if let Some(Value::String(runner)) = game.get("runner") {
-        runner
+        command.push(runner.clone());
+        runner.to_owned()
     } else {
-        "wine"
+        String::new()
     };
 
-    let mut game_args = Vec::new();
+    if let Some(Value::String(val)) = game.get("wine") {
+        let val = expand_tilde(val, &home);
+        env::set_var("WINE", &val);
+        command.push(val);
+    }
+
+    if let Some(Value::String(val)) = game.get("prefix") {
+        let val = expand_tilde(val, &home);
+        env::set_var("WINEPREFIX", &val);
+
+        if !Path::new(&val).exists() {
+            if runner.is_empty() {
+                Command::new("winetricks").arg("dxvk").status().unwrap();
+            } else {
+                Command::new(runner)
+                    .args(["winetricks", "dxvk"])
+                    .status()
+                    .unwrap();
+            }
+        }
+    }
 
     if let Some(Value::String(exe)) = game.get("exe") {
-        game_args.push(exe.replace('~', &home));
+        let exe = expand_tilde(exe, &home);
+
+        let path = exe
+            .strip_suffix(Path::new(&exe).file_name().unwrap().to_str().unwrap())
+            .unwrap();
+        env::set_current_dir(path).unwrap();
+
+        command.push(exe);
     }
 
-    if let Some(Value::String(val)) = game.get("args") {
-        game_args.extend(val.split_whitespace().map(str::to_owned));
-    } else if let Some(Value::Array(val)) = game.get("args") {
-        game_args.extend(val.iter().map(|v| v.to_string()));
+    if let Some(Value::String(dir)) = game.get("dir") {
+        env::set_current_dir(expand_tilde(dir, &home)).unwrap();
     }
 
-    Command::new(runner).args(game_args).spawn().unwrap();
+    if let Some(Value::Array(val)) = game.get("args") {
+        command.extend(val.iter().map(|v| v.as_str().unwrap().to_owned()));
+    }
+
+    Command::new(&command[0])
+        .args(&command[1..])
+        .spawn()
+        .unwrap();
+}
+
+fn expand_tilde(s: &str, home: &str) -> String {
+    if s.starts_with("~/") {
+        format!("{}/{}", home, s.strip_prefix("~/").unwrap())
+    } else {
+        s.to_owned()
+    }
 }
