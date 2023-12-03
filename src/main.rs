@@ -2,6 +2,8 @@ use std::{env, fs, path::Path, process::Command};
 
 use toml::{Table, Value};
 
+use ley::expand_tilde;
+
 fn main() {
     let args: Vec<_> = env::args().collect();
     let home = env::var("HOME").unwrap();
@@ -11,9 +13,14 @@ fn main() {
         .expect("error reading config file")
         .parse::<Table>()
         .expect("not a valid toml file");
-    let game = config
-        .get(args.get(1).expect("expected a game id"))
-        .expect("game not found");
+    let game = if let Some(game_id) = args.get(1) {
+        config.get(game_id).expect("game not found")
+    } else {
+        for game in config.keys().collect::<Vec<_>>() {
+            println!("{game}");
+        }
+        return;
+    };
 
     if let Some(Value::String(res)) = game.get("res") {
         if sway {
@@ -39,7 +46,10 @@ fn main() {
     }
 
     env::set_var("WINE", "wine");
-    env::set_var("WINEDEBUG", "-all");
+
+    if !cfg!(debug_assertions) {
+        env::set_var("WINEDEBUG", "-all");
+    }
 
     if let Some(Value::String(val)) = game.get("arch") {
         if val == "win32" {
@@ -67,9 +77,7 @@ fn main() {
     };
 
     if let Some(Value::String(runner)) = game.get("runner") {
-        command.push(runner.to_owned());
-    } else if let Some(Value::String(val)) = game.get("wine") {
-        let val = expand_tilde(val, &home);
+        let val = expand_tilde(runner, &home);
         env::set_var("WINE", &val);
         command.push(val);
     }
@@ -137,13 +145,5 @@ fn main() {
             .args(&command[1..])
             .spawn()
             .unwrap();
-    }
-}
-
-fn expand_tilde(s: &str, home: &str) -> String {
-    if s.starts_with("~/") {
-        format!("{}/{}", home, s.strip_prefix("~/").unwrap())
-    } else {
-        s.to_owned()
     }
 }
