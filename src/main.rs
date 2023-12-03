@@ -58,33 +58,23 @@ fn main() {
 
     let mut command = Vec::new();
 
-    let runner = if let Some(Value::String(runner)) = game.get("runner") {
-        command.push(runner.clone());
-        runner.to_owned()
+    let pre = if let Some(Value::String(pre)) = game.get("pre") {
+        command.push(pre.clone());
+        pre.to_owned()
     } else {
         String::new()
     };
 
-    if let Some(Value::String(val)) = game.get("wine") {
+    if let Some(Value::String(runner)) = game.get("runner") {
+        command.push(runner.to_owned());
+    } else if let Some(Value::String(val)) = game.get("wine") {
         let val = expand_tilde(val, &home);
         env::set_var("WINE", &val);
         command.push(val);
     }
 
     if let Some(Value::String(val)) = game.get("prefix") {
-        let val = expand_tilde(val, &home);
-        env::set_var("WINEPREFIX", &val);
-
-        if !Path::new(&val).exists() {
-            if runner.is_empty() {
-                Command::new("winetricks").arg("dxvk").status().unwrap();
-            } else {
-                Command::new(runner)
-                    .args(["winetricks", "dxvk"])
-                    .status()
-                    .unwrap();
-            }
-        }
+        env::set_var("WINEPREFIX", expand_tilde(val, &home));
     }
 
     if let Some(Value::String(exe)) = game.get("exe") {
@@ -106,10 +96,35 @@ fn main() {
         command.extend(val.iter().map(|v| v.as_str().unwrap().to_owned()));
     }
 
-    Command::new(&command[0])
-        .args(&command[1..])
-        .spawn()
-        .unwrap();
+    if args.len() > 2 {
+        let mut command = if pre.is_empty() {
+            Vec::new()
+        } else {
+            vec![pre]
+        };
+
+        match args[2].as_str() {
+            "winecfg" => {
+                command.push(env::var("WINE").unwrap());
+                command.push("winecfg".to_owned())
+            }
+            _ => command.extend_from_slice(&args[2..]),
+        }
+
+        if command.len() == 1 {
+            Command::new(&command[0]).spawn().unwrap();
+        } else {
+            Command::new(&command[0])
+                .args(&command[1..])
+                .spawn()
+                .unwrap();
+        }
+    } else {
+        Command::new(&command[0])
+            .args(&command[1..])
+            .spawn()
+            .unwrap();
+    }
 }
 
 fn expand_tilde(s: &str, home: &str) -> String {
