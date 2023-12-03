@@ -38,6 +38,7 @@ fn main() {
         }
     }
 
+    env::set_var("WINE", "wine");
     env::set_var("WINEDEBUG", "-all");
 
     if let Some(Value::String(val)) = game.get("arch") {
@@ -97,27 +98,39 @@ fn main() {
     }
 
     if args.len() > 2 {
-        let mut command = if pre.is_empty() {
-            Vec::new()
-        } else {
-            vec![pre]
-        };
+        if args[2] == "setup" {
+            let command = if pre.is_empty() {
+                vec!["winetricks", "dxvk"]
+            } else {
+                vec![pre.as_str(), "winetricks", "dxvk"]
+            };
 
-        match args[2].as_str() {
-            "winecfg" => {
+            Command::new(command[0])
+                .args(&command[1..])
+                .status()
+                .unwrap();
+        } else {
+            let mut command = if pre.is_empty() {
+                Vec::new()
+            } else {
+                vec![pre]
+            };
+
+            if args[2] == "winecfg" {
                 command.push(env::var("WINE").unwrap());
                 command.push("winecfg".to_owned())
+            } else {
+                command.extend_from_slice(&args[2..])
             }
-            _ => command.extend_from_slice(&args[2..]),
-        }
 
-        if command.len() == 1 {
-            Command::new(&command[0]).spawn().unwrap();
-        } else {
-            Command::new(&command[0])
-                .args(&command[1..])
-                .spawn()
-                .unwrap();
+            if command.len() == 1 {
+                Command::new(&command[0]).spawn().unwrap();
+            } else {
+                Command::new(&command[0])
+                    .args(&command[1..])
+                    .spawn()
+                    .unwrap();
+            }
         }
     } else {
         Command::new(&command[0])
