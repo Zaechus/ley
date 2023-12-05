@@ -102,7 +102,7 @@ fn main() {
     }
 
     if let Some(Value::Array(val)) = game.get("args") {
-        command.extend(val.iter().map(|v| v.as_str().unwrap().to_owned()));
+        command.extend(val.iter().map(|v| expand_tilde(v.as_str().unwrap(), &home)));
     }
 
     if args.len() > 2 {
@@ -132,11 +132,11 @@ fn main() {
             }
 
             if command.len() == 1 {
-                Command::new(&command[0]).spawn().unwrap();
+                Command::new(&command[0]).status().unwrap();
             } else {
                 Command::new(&command[0])
                     .args(&command[1..])
-                    .spawn()
+                    .status()
                     .unwrap();
             }
         }
