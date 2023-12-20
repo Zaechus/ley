@@ -1,4 +1,9 @@
-use std::{env, fs, path::Path, process::Command};
+use std::{
+    env,
+    fs::{self, File},
+    path::Path,
+    process::Command,
+};
 
 use toml::{Table, Value};
 
@@ -21,6 +26,13 @@ fn main() {
         }
         return;
     };
+
+    fs::create_dir_all(expand_tilde("~/.cache/ley/", &home))
+        .expect("error creating cache directory");
+    let stdout_log = File::create(expand_tilde("~/.cache/ley/stdout.log", &home))
+        .expect("error creating log file");
+    let stderr_log = File::create(expand_tilde("~/.cache/ley/stderr.log", &home))
+        .expect("error creating log file");
 
     if let Some(Value::String(res)) = game.get("res") {
         if sway {
@@ -143,6 +155,8 @@ fn main() {
     } else {
         Command::new(&command[0])
             .args(&command[1..])
+            .stdout(stdout_log)
+            .stderr(stderr_log)
             .spawn()
             .unwrap();
     }
