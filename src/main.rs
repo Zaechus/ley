@@ -104,7 +104,7 @@ fn main() {
         let path = exe
             .strip_suffix(Path::new(&exe).file_name().unwrap().to_str().unwrap())
             .unwrap();
-        env::set_current_dir(path).unwrap();
+        env::set_current_dir(path).ok();
 
         command.push(exe);
     }
