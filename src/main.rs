@@ -117,13 +117,27 @@ fn main() {
         command.extend(val.iter().map(|v| expand_tilde(v.as_str().unwrap(), &home)));
     }
 
+    if let Some(Value::Table(vars)) = game.get("env") {
+        for (k, v) in vars {
+            if let Value::Integer(i) = v {
+                env::set_var(k, i.to_string());
+            } else {
+                env::set_var(k, v.as_str().unwrap());
+            }
+        }
+    };
+
     if args.len() > 2 {
         if args[2] == "setup" {
-            let command = if pre.is_empty() {
+            let mut command = if pre.is_empty() {
                 vec!["winetricks", "dxvk"]
             } else {
                 vec![pre.as_str(), "winetricks", "dxvk"]
             };
+
+            if let Some(Value::Array(val)) = game.get("winetricks") {
+                command.extend(val.iter().map(|v| v.as_str().unwrap()));
+            }
 
             Command::new(command[0])
                 .args(&command[1..])
