@@ -34,17 +34,22 @@ fn main() {
     let stderr_log = File::create(expand_tilde("~/.cache/ley/stderr.log", &home))
         .expect("error creating log file");
 
-    if let Some(Value::String(res)) = game.get("res") {
-        if sway {
-            Command::new("swaymsg")
-                .args(["output", "-", "mode", res])
-                .spawn()
-                .unwrap();
+    if sway {
+        if args.len() < 3 {
+            if let Some(Value::String(res)) = game.get("res") {
+                Command::new("swaymsg")
+                    .args(["output", "-", "mode", res])
+                    .spawn()
+                    .unwrap();
+            } else if let Some(Value::String(scale)) = game.get("scale") {
+                Command::new("swaymsg")
+                    .args(["output", "-", "scale", scale])
+                    .spawn()
+                    .unwrap();
+            }
         }
-    }
 
-    if let Some(Value::String(accel)) = game.get("mouse_speed") {
-        if sway {
+        if let Some(Value::String(accel)) = game.get("mouse_speed") {
             Command::new("swaymsg")
                 .args([
                     "input",
@@ -142,6 +147,22 @@ fn main() {
             Command::new(command[0])
                 .args(&command[1..])
                 .status()
+                .unwrap();
+        } else if args[2] == "scale" {
+            if sway {
+                if let Some(Value::String(scale)) = game.get("scale") {
+                    Command::new("swaymsg")
+                        .args(["output", "-", "scale", scale])
+                        .spawn()
+                        .unwrap();
+                }
+            }
+
+            Command::new(&command[0])
+                .args(&command[1..])
+                .stdout(stdout_log)
+                .stderr(stderr_log)
+                .spawn()
                 .unwrap();
         } else {
             let mut command = if pre.is_empty() {
