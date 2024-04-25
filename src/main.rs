@@ -1,7 +1,7 @@
 use std::{
     env,
     fs::{self, File},
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
 };
 
@@ -10,11 +10,16 @@ use toml::{Table, Value};
 
 use ley::expand_tilde;
 
+// TODO: exclusive params
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
     /// Game name
     name: Option<String>,
+
+    /// Install an exe with wine
+    #[arg(long)]
+    install: Option<PathBuf>,
 
     /// Run setup commands in a wine prefix
     #[arg(long)]
@@ -121,11 +126,31 @@ fn main() {
         }
     };
 
+    let run_with_wine = |cmd: &str| {
+        let wine = if let Ok(s) = env::var("WINE") {
+            s
+        } else {
+            "wine".to_owned()
+        };
+        let command = if pre.is_empty() {
+            vec![&wine, cmd]
+        } else {
+            vec![&pre, &wine, cmd]
+        };
+
+        Command::new(command[0])
+            .args(&command[1..])
+            .status()
+            .unwrap();
+    };
+
     if !cli.command.is_empty() {
         Command::new(&cli.command[0])
             .args(&cli.command[1..])
             .status()
             .unwrap();
+    } else if let Some(install) = cli.install {
+        run_with_wine(&install.into_os_string().into_string().unwrap());
     } else if cli.setup {
         let mut command = if pre.is_empty() {
             vec!["winetricks", "dxvk"]
@@ -142,21 +167,7 @@ fn main() {
             .status()
             .unwrap();
     } else if cli.winecfg {
-        let wine = if let Ok(s) = env::var("WINE") {
-            s
-        } else {
-            "wine".to_owned()
-        };
-        let command = if pre.is_empty() {
-            vec![&wine, "winecfg"]
-        } else {
-            vec![pre.as_str(), &wine, "winecfg"]
-        };
-
-        Command::new(command[0])
-            .args(&command[1..])
-            .status()
-            .unwrap();
+        run_with_wine("winecfg");
     } else {
         if env::var("XDG_CURRENT_DESKTOP").as_deref() == Ok("sway") {
             match (
