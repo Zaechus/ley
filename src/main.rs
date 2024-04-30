@@ -12,7 +12,7 @@ use ley::expand_tilde;
 
 // TODO: exclusive params
 #[derive(Parser)]
-#[command(version)]
+#[command(version, about)]
 struct Cli {
     /// Game name
     name: Option<String>,
@@ -29,7 +29,7 @@ struct Cli {
     #[arg(long)]
     winecfg: bool,
 
-    /// Prefer change output scale over resolution
+    /// Prefer changing output scale over resolution
     #[arg(long)]
     scale: bool,
 
@@ -38,7 +38,6 @@ struct Cli {
     command: Vec<String>,
 }
 
-// TODO: set winecfg options
 fn main() {
     let cli = Cli::parse();
 
@@ -49,8 +48,21 @@ fn main() {
     let game = if let Some(game_id) = cli.name.as_deref() {
         config.get(game_id).expect("game not found")
     } else {
-        for game in config.keys().collect::<Vec<_>>() {
-            println!("{game}");
+        for (name, game) in config {
+            let dir_exists = if let Some(Value::String(dir)) = game.get("dir") {
+                Path::new(&expand_tilde(dir)).exists()
+            } else {
+                false
+            };
+            let exe_exists = if let Some(Value::String(exe)) = game.get("exe") {
+                Path::new(&expand_tilde(exe)).exists()
+            } else {
+                false
+            };
+
+            if dir_exists || exe_exists {
+                println!("{name}");
+            }
         }
         return;
     };
