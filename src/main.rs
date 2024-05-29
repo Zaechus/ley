@@ -3,12 +3,15 @@ use std::{
     fs::{self, File},
     path::{Path, PathBuf},
     process::Command,
+    thread,
+    time::{Duration, Instant},
 };
 
 use clap::Parser;
+use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
 use toml::{Table, Value};
 
-use ley::expand_tilde;
+use ley::{expand_tilde, log_playtime};
 
 // TODO: exclusive params
 #[derive(Parser)]
@@ -44,24 +47,21 @@ fn main() {
     let config = fs::read_to_string(expand_tilde("~/.config/ley/ley.toml"))
         .expect("error reading config file")
         .parse::<Table>()
-        .expect("not a valid toml file");
+        .expect("not a valid toml file"); // TODO
     let game = if let Some(game_id) = cli.name.as_deref() {
         config.get(game_id).expect("game not found")
     } else {
         for (name, game) in config {
-            let dir_exists = if let Some(Value::String(dir)) = game.get("dir") {
-                Path::new(&expand_tilde(dir)).exists()
-            } else {
-                false
-            };
-            let exe_exists = if let Some(Value::String(exe)) = game.get("exe") {
+            let game_installed = if let Some(Value::String(dir)) = game.get("dir") {
+                Path::new(&expand_tilde(dir)).is_dir()
+            } else if let Some(Value::String(exe)) = game.get("exe") {
                 Path::new(&expand_tilde(exe)).exists()
             } else {
                 false
             };
 
-            if dir_exists || exe_exists {
-                println!("{name}");
+            if game_installed {
+                println!("{name}"); // TODO: installed size
             }
         }
         return;
@@ -223,12 +223,42 @@ fn main() {
             File::create(expand_tilde("~/.cache/ley/stdout.log")).expect("error creating log file");
         let stderr_log =
             File::create(expand_tilde("~/.cache/ley/stderr.log")).expect("error creating log file");
+        let now = Instant::now();
 
         Command::new(&command[0])
             .args(&command[1..])
             .stdout(stdout_log)
             .stderr(stderr_log)
-            .spawn()
+            .status()
             .unwrap();
+
+        // some Windows executables are launchers, so additionally track the winedevice.exe pid
+        if let Some(Value::String(prefix)) = game.get("prefix") {
+            let mut sys = System::new_with_specifics(
+                RefreshKind::new()
+                    .with_processes(ProcessRefreshKind::new().with_cwd(UpdateKind::Always)),
+            );
+            if let Some((winedevice_pid, _)) = sys.processes().iter().find(|(_, process)| {
+                if let Some(cwd) = process.cwd() {
+                    process.name() == "winedevice.exe"
+                        && cwd.to_str().unwrap().contains(&expand_tilde(prefix))
+                } else {
+                    false
+                }
+            }) {
+                let pid = *winedevice_pid;
+                loop {
+                    if !sys.refresh_process(pid) {
+                        break;
+                    }
+                    thread::sleep(Duration::from_secs(1));
+                }
+            }
+        }
+
+        let seconds = now.elapsed().as_secs();
+        if seconds > 119 {
+            log_playtime(&cli.name.unwrap(), seconds); // TODO: extend global playtime
+        }
     }
 }
