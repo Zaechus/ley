@@ -61,7 +61,7 @@ fn main() {
             };
 
             if game_installed {
-                println!("{name}"); // TODO: installed size
+                println!("{name}"); // TODO: installed size and playtime as a table
             }
         }
         return;
@@ -258,7 +258,7 @@ fn main() {
 
         let seconds = now.elapsed().as_secs();
         if seconds > 119 {
-            log_playtime(&cli.name.unwrap(), seconds); // TODO: extend global playtime
+            log_playtime(&cli.name.unwrap(), seconds);
         }
     }
 }

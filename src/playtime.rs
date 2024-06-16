@@ -1,6 +1,11 @@
-use std::{fs::OpenOptions, io::Write, time::Duration};
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    time::Duration,
+};
 
 use chrono::{self, SecondsFormat};
+use toml::{Table, Value};
 
 use crate::expand_tilde;
 
@@ -16,6 +21,30 @@ pub fn log_playtime(name: &str, seconds: u64) {
         start_time(seconds),
         name,
         format_duration(seconds)
+    )
+    .unwrap();
+
+    let mut data_toml = fs::read_to_string(expand_tilde("~/.local/share/ley/data.toml"))
+        .unwrap_or_default()
+        .parse::<Table>()
+        .expect("not a valid toml file");
+    if let Some(t) = data_toml.get_mut(name) {
+        if let Some(v) = t.get_mut("playtime") {
+            *v = Value::Integer(v.as_integer().unwrap() + seconds as i64)
+        } else {
+            t.as_table_mut()
+                .unwrap()
+                .insert("playtime".to_string(), Value::Integer(seconds as i64));
+        }
+    } else {
+        let mut t = Table::new();
+        t.insert("playtime".to_string(), Value::Integer(seconds as i64));
+        data_toml.insert(name.to_string(), Value::Table(t));
+    };
+
+    fs::write(
+        expand_tilde("~/.local/share/ley/data.toml"),
+        data_toml.to_string(),
     )
     .unwrap();
 }
