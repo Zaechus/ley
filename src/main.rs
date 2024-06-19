@@ -2,7 +2,7 @@ use std::{
     env,
     fs::{self, File},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, ExitCode},
     thread,
     time::{Duration, Instant},
 };
@@ -41,15 +41,15 @@ struct Cli {
     command: Vec<String>,
 }
 
-fn main() {
+fn main() -> ExitCode {
     let cli = Cli::parse();
 
     let config = fs::read_to_string(expand_tilde("~/.config/ley/ley.toml"))
         .expect("error reading config file")
         .parse::<Table>()
-        .expect("not a valid toml file"); // TODO
-    let game = if let Some(game_id) = cli.name.as_deref() {
-        config.get(game_id).expect("game not found")
+        .expect("not a valid toml file");
+    let name = if let Some(name) = cli.name.as_deref() {
+        name
     } else {
         for (name, game) in config {
             let game_installed = if let Some(Value::String(dir)) = game.get("dir") {
@@ -64,7 +64,13 @@ fn main() {
                 println!("{name}"); // TODO: installed size and playtime as a table
             }
         }
-        return;
+        return ExitCode::SUCCESS;
+    };
+    let game = if let Some(v) = config.get(name) {
+        v
+    } else {
+        eprintln!("game not found");
+        return ExitCode::FAILURE;
     };
 
     env::set_var("WINE", "wine");
@@ -225,6 +231,11 @@ fn main() {
             File::create(expand_tilde("~/.cache/ley/stderr.log")).expect("error creating log file");
         let now = Instant::now();
 
+        if let Err(_) = File::create_new(expand_tilde(&format!("~/.cache/ley/{}.lck", name))) {
+            eprintln!("{} is already running.", name);
+            return ExitCode::FAILURE;
+        }
+
         Command::new(&command[0])
             .args(&command[1..])
             .stdout(stdout_log)
@@ -236,12 +247,15 @@ fn main() {
         if let Some(Value::String(prefix)) = game.get("prefix") {
             let mut sys = System::new_with_specifics(
                 RefreshKind::new()
-                    .with_processes(ProcessRefreshKind::new().with_cwd(UpdateKind::Always)),
+                    .with_processes(ProcessRefreshKind::new().with_cwd(UpdateKind::OnlyIfNotSet)),
             );
             if let Some((winedevice_pid, _)) = sys.processes().iter().find(|(_, process)| {
                 if let Some(cwd) = process.cwd() {
                     process.name() == "winedevice.exe"
-                        && cwd.to_str().unwrap().contains(&expand_tilde(prefix))
+                        && cwd
+                            .to_str()
+                            .unwrap_or_default()
+                            .contains(&expand_tilde(prefix))
                 } else {
                     false
                 }
@@ -256,9 +270,13 @@ fn main() {
             }
         }
 
+        _ = fs::remove_file(expand_tilde(&format!("~/.cache/ley/{}.lck", name)));
+
         let seconds = now.elapsed().as_secs();
         if seconds > 119 {
-            log_playtime(&cli.name.unwrap(), seconds);
+            log_playtime(name, seconds);
         }
     }
+
+    ExitCode::SUCCESS
 }
