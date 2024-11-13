@@ -8,7 +8,7 @@ use std::{
 };
 
 use clap::Parser;
-use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
+use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System, UpdateKind};
 use toml::{Table, Value};
 
 use ley::{expand_tilde, log_playtime};
@@ -168,7 +168,9 @@ fn main() -> ExitCode {
             .status()
             .unwrap();
     } else if let Some(install) = cli.install {
-        run_with_wine(&install.into_os_string().into_string().unwrap());
+        run_with_wine(&expand_tilde(
+            &install.into_os_string().into_string().unwrap(),
+        ));
     } else if cli.setup {
         let mut command = if pre.is_empty() {
             vec!["winetricks", "dxvk"]
@@ -231,7 +233,7 @@ fn main() -> ExitCode {
             File::create(expand_tilde("~/.cache/ley/stderr.log")).expect("error creating log file");
         let now = Instant::now();
 
-        if let Err(_) = File::create_new(expand_tilde(&format!("~/.cache/ley/{}.lck", name))) {
+        if File::create_new(expand_tilde(&format!("~/.cache/ley/{}.lck", name))).is_err() {
             eprintln!("{} is already running.", name);
             return ExitCode::FAILURE;
         }
@@ -262,7 +264,7 @@ fn main() -> ExitCode {
             }) {
                 let pid = *winedevice_pid;
                 loop {
-                    if !sys.refresh_process(pid) {
+                    if sys.refresh_processes(ProcessesToUpdate::Some(&[pid]), true) == 0 {
                         break;
                     }
                     thread::sleep(Duration::from_secs(1));
