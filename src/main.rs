@@ -173,9 +173,9 @@ fn main() -> ExitCode {
         ));
     } else if cli.setup {
         let mut command = if pre.is_empty() {
-            vec!["winetricks", "dxvk"]
+            vec!["winetricks", "-q", "dxvk"]
         } else {
-            vec![pre.as_str(), "winetricks", "dxvk"]
+            vec![pre.as_str(), "winetricks", "-q", "dxvk"]
         };
 
         if let Some(Value::Array(val)) = game.get("winetricks") {
