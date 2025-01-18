@@ -44,6 +44,11 @@ struct Cli {
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
+    if !Path::new(&expand_tilde("~/.config/ley/ley.toml")).exists() {
+        eprintln!("~/.config/ley/ley.toml does not exist...");
+        return ExitCode::FAILURE;
+    }
+
     let config = fs::read_to_string(expand_tilde("~/.config/ley/ley.toml"))
         .expect("error reading config file")
         .parse::<Table>()
