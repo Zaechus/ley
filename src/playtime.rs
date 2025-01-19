@@ -1,6 +1,7 @@
 use std::{
     fs::{self, OpenOptions},
     io::Write,
+    path::Path,
     time::Duration,
 };
 
@@ -23,6 +24,11 @@ pub fn log_playtime(name: &str, seconds: u64) {
         format_duration(seconds)
     )
     .unwrap();
+
+    if !Path::new(&expand_tilde("~/.local/share/ley/data.toml")).exists() {
+        eprintln!("~/.local/share/ley/data.toml does not exist. Skipping log_playtime...");
+        return;
+    }
 
     let mut data_toml = fs::read_to_string(expand_tilde("~/.local/share/ley/data.toml"))
         .unwrap_or_default()

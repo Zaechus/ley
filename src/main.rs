@@ -205,6 +205,8 @@ fn main() -> ExitCode {
                         Command::new("swaymsg")
                             .args(["output", "-", "scale", scale])
                             .spawn()
+                            .unwrap()
+                            .wait()
                             .unwrap();
                     }
                 }
@@ -213,6 +215,8 @@ fn main() -> ExitCode {
                         Command::new("swaymsg")
                             .args(["output", "-", "mode", res])
                             .spawn()
+                            .unwrap()
+                            .wait()
                             .unwrap();
                     }
                 }
@@ -227,6 +231,8 @@ fn main() -> ExitCode {
                         &format!("'{}'", accel),
                     ])
                     .spawn()
+                    .unwrap()
+                    .wait()
                     .unwrap();
             }
         }
@@ -252,10 +258,10 @@ fn main() -> ExitCode {
 
         // some Windows executables are launchers, so additionally track the winedevice.exe pid
         if let Some(Value::String(prefix)) = game.get("prefix") {
-            let mut sys = System::new_with_specifics(
-                RefreshKind::new()
-                    .with_processes(ProcessRefreshKind::new().with_cwd(UpdateKind::OnlyIfNotSet)),
-            );
+            let mut sys =
+                System::new_with_specifics(RefreshKind::nothing().with_processes(
+                    ProcessRefreshKind::nothing().with_cwd(UpdateKind::OnlyIfNotSet),
+                ));
             if let Some((winedevice_pid, _)) = sys.processes().iter().find(|(_, process)| {
                 if let Some(cwd) = process.cwd() {
                     process.name() == "winedevice.exe"
