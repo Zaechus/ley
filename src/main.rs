@@ -113,11 +113,23 @@ fn main() -> ExitCode {
         String::new()
     };
 
-    if let Some(Value::String(runner)) = game.get("runner") {
-        let val = expand_tilde(runner);
-        env::set_var("WINE", &val);
-        command.push(val);
-    }
+    if let Some(Value::String(version)) = game.get("wine") {
+        fs::create_dir_all(expand_tilde("~/.local/share/ley")).unwrap();
+        if !Path::new(&expand_tilde(&format!("~/.local/share/ley/{version}"))).exists() {
+            panic!("wine bin does not exist!"); // TODO: download it
+        }
+        if on_nixos() {
+            command.insert(0, "steam-run".to_owned())
+        }
+
+        let bin = expand_tilde(&format!("~/.local/share/ley/{version}/bin/wine"));
+        env::set_var("WINE", &bin);
+        command.push(bin);
+    } else if let Some(Value::String(val)) = game.get("runner") {
+        let runner = expand_tilde(val);
+        env::set_var("WINE", &runner);
+        command.push(runner);
+    } // TODO: prepend implied steam-run on NixOS for games with an exe but no runner
 
     if let Some(Value::String(exe)) = game.get("exe") {
         let exe = expand_tilde(exe);
@@ -155,11 +167,15 @@ fn main() -> ExitCode {
         } else {
             "wine".to_owned()
         };
-        let command = if pre.is_empty() {
+        let mut command = if pre.is_empty() {
             vec![&wine, cmd]
         } else {
             vec![&pre, &wine, cmd]
         };
+
+        if on_nixos() {
+            command.insert(0, "steam-run")
+        }
 
         Command::new(command[0])
             .args(&command[1..])
@@ -182,6 +198,10 @@ fn main() -> ExitCode {
         } else {
             vec![pre.as_str(), "winetricks", "-q", "dxvk"]
         };
+
+        if on_nixos() {
+            command.insert(0, "steam-run")
+        }
 
         if let Some(Value::Array(val)) = game.get("winetricks") {
             command.extend(val.iter().map(|v| v.as_str().unwrap()));
@@ -292,4 +312,8 @@ fn main() -> ExitCode {
     }
 
     ExitCode::SUCCESS
+}
+
+fn on_nixos() -> bool {
+    Path::new("/nix").exists() && Path::new("/run/current-system/sw/bin/steam-run").exists()
 }
