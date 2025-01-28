@@ -193,11 +193,18 @@ fn main() -> ExitCode {
             &install.into_os_string().into_string().unwrap(),
         ));
     } else if cli.setup {
-        let mut command = if pre.is_empty() {
-            vec!["winetricks", "-q", "dxvk"]
-        } else {
-            vec![pre.as_str(), "winetricks", "-q", "dxvk"]
-        };
+        let mut command = vec![
+            "winetricks",
+            "-q",
+            "dxvk",
+            "d3dcompiler_43",
+            "d3dcompiler_47",
+            "d3dx9",
+        ];
+
+        if !pre.is_empty() {
+            command.insert(0, pre.as_str())
+        }
 
         if on_nixos() {
             command.insert(0, "steam-run")
