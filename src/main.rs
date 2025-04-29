@@ -108,9 +108,9 @@ fn main() -> ExitCode {
 
     let pre = if let Some(Value::String(pre)) = game.get("pre") {
         command.push(pre.clone());
-        pre.to_owned()
+        pre
     } else {
-        String::new()
+        ""
     };
 
     if let Some(Value::String(version)) = game.get("wine") {
@@ -162,15 +162,12 @@ fn main() -> ExitCode {
     };
 
     let run_with_wine = |cmd: &str| {
-        let wine = if let Ok(s) = env::var("WINE") {
-            s
-        } else {
-            "wine".to_owned()
-        };
-        let mut command = if pre.is_empty() {
-            vec![&wine, cmd]
-        } else {
-            vec![&pre, &wine, cmd]
+        let wine = env::var("WINE");
+        let wine = wine.as_deref().unwrap_or("wine");
+        let mut command = vec![wine, cmd];
+
+        if !pre.is_empty() {
+            command.insert(0, pre)
         };
 
         if on_nixos() {
@@ -203,19 +200,19 @@ fn main() -> ExitCode {
         ];
 
         if !pre.is_empty() {
-            command.insert(0, pre.as_str())
+            command.insert(0, pre)
         }
 
         if on_nixos() {
             command.insert(0, "steam-run")
         }
 
-        if let Some(Value::Array(val)) = game.get("winetricks") {
-            command.extend(val.iter().map(|v| v.as_str().unwrap()));
+        if let Some(Value::Array(arr)) = game.get("winetricks") {
+            command.extend(arr.iter().map(|v| v.as_str().unwrap()));
         }
 
         Command::new(command[0])
-            .args(&command[1..])
+            .args(command[1..].iter().map(|s| expand_tilde(s)))
             .status()
             .unwrap();
     } else if cli.winecfg {
