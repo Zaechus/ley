@@ -129,7 +129,9 @@ fn main() -> ExitCode {
         let runner = expand_tilde(val);
         env::set_var("WINE", &runner);
         command.push(runner);
-    } // TODO: prepend implied steam-run on NixOS for games with an exe but no runner
+    } else if on_nixos() {
+        command.insert(0, "steam-run".to_owned());
+    }
 
     if let Some(Value::String(exe)) = game.get("exe") {
         let exe = expand_tilde(exe);
@@ -170,7 +172,7 @@ fn main() -> ExitCode {
             command.insert(0, pre)
         };
 
-        if on_nixos() {
+        if on_nixos() && wine != "wine" {
             command.insert(0, "steam-run")
         }
 
@@ -200,11 +202,11 @@ fn main() -> ExitCode {
         ];
 
         if !pre.is_empty() {
-            command.insert(0, pre)
+            command.insert(0, pre);
         }
 
-        if on_nixos() {
-            command.insert(0, "steam-run")
+        if on_nixos() && env::var("WINE").as_deref() != Ok("wine") {
+            command.insert(0, "steam-run");
         }
 
         if let Some(Value::Array(arr)) = game.get("winetricks") {
@@ -252,7 +254,7 @@ fn main() -> ExitCode {
                         "input",
                         "type:pointer",
                         "pointer_accel",
-                        &format!("'{}'", accel),
+                        &format!("'{accel}'"),
                     ])
                     .spawn()
                     .unwrap()
@@ -268,8 +270,8 @@ fn main() -> ExitCode {
             File::create(expand_tilde("~/.cache/ley/stderr.log")).expect("error creating log file");
         let now = Instant::now();
 
-        if File::create_new(expand_tilde(&format!("~/.cache/ley/{}.lck", name))).is_err() {
-            eprintln!("{} is already running.", name);
+        if File::create_new(expand_tilde(&format!("~/.cache/ley/{name}.lck"))).is_err() {
+            eprintln!("{name} is already running.");
             return ExitCode::FAILURE;
         }
 
@@ -307,7 +309,7 @@ fn main() -> ExitCode {
             }
         }
 
-        _ = fs::remove_file(expand_tilde(&format!("~/.cache/ley/{}.lck", name)));
+        _ = fs::remove_file(expand_tilde(&format!("~/.cache/ley/{name}.lck")));
 
         let seconds = now.elapsed().as_secs();
         if seconds > 119 {
