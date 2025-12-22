@@ -116,7 +116,7 @@ fn main() -> ExitCode {
     if let Some(Value::String(version)) = game.get("wine") {
         fs::create_dir_all(expand_tilde("~/.local/share/ley")).unwrap();
         if !Path::new(&expand_tilde(&format!("~/.local/share/ley/{version}"))).exists() {
-            panic!("wine bin does not exist!"); // TODO: download it
+            todo!("wine bin does not exist!"); // TODO: download it
         }
         if on_nixos() {
             command.insert(0, "steam-run".to_owned())
@@ -321,5 +321,5 @@ fn main() -> ExitCode {
 }
 
 fn on_nixos() -> bool {
-    Path::new("/nix").exists() && Path::new("/run/current-system/sw/bin/steam-run").exists()
+    Path::new("/etc/NIXOS").exists() && Path::new("/run/current-system/sw/bin/steam-run").exists()
 }
