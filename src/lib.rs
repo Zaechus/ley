@@ -2,9 +2,9 @@ pub use playtime::log_playtime;
 
 mod playtime;
 
-use std::env;
-
 pub fn expand_tilde(s: &str) -> String {
+    use std::env;
+
     if s.starts_with("~/") {
         format!(
             "{}/{}",

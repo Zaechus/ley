@@ -1,6 +1,7 @@
 use std::{
-    env,
+    env, error,
     fs::{self, File},
+    io,
     path::{Path, PathBuf},
     process::{Command, ExitCode},
     thread,
@@ -8,7 +9,9 @@ use std::{
 };
 
 use clap::Parser;
+use lzma_rust2::XzReader;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System, UpdateKind};
+use tar::Archive;
 use toml::{Table, Value};
 
 use ley::{expand_tilde, log_playtime};
@@ -49,10 +52,16 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    let config = fs::read_to_string(expand_tilde("~/.config/ley/ley.toml"))
+    let config = match fs::read_to_string(expand_tilde("~/.config/ley/ley.toml"))
         .expect("error reading config file")
         .parse::<Table>()
-        .expect("not a valid toml file");
+    {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Invalid config file: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
     let name = if let Some(name) = cli.name.as_deref() {
         name
     } else {
@@ -71,8 +80,8 @@ fn main() -> ExitCode {
         }
         return ExitCode::SUCCESS;
     };
-    let game = if let Some(v) = config.get(name) {
-        v
+    let game = if let Some(val) = config.get(name) {
+        val
     } else {
         eprintln!("game not found");
         return ExitCode::FAILURE;
@@ -115,14 +124,23 @@ fn main() -> ExitCode {
 
     if let Some(Value::String(version)) = game.get("wine") {
         fs::create_dir_all(expand_tilde("~/.local/share/ley")).unwrap();
-        if !Path::new(&expand_tilde(&format!("~/.local/share/ley/{version}"))).exists() {
-            todo!("wine bin does not exist!"); // TODO: download it
+        if !Path::new(&expand_tilde(&format!(
+            "~/.local/share/ley/wine-{version}-staging-amd64-wow64"
+        )))
+        .exists()
+        {
+            if let Err(e) = download_wine(version) {
+                eprintln!("{e}");
+                return ExitCode::FAILURE;
+            }
         }
         if on_nixos() {
             command.insert(0, "steam-run".to_owned())
         }
 
-        let bin = expand_tilde(&format!("~/.local/share/ley/{version}/bin/wine"));
+        let bin = expand_tilde(&format!(
+            "~/.local/share/ley/wine-{version}-staging-amd64-wow64/bin/wine"
+        ));
         env::set_var("WINE", &bin);
         command.push(bin);
     } else if let Some(Value::String(val)) = game.get("runner") {
@@ -187,10 +205,6 @@ fn main() -> ExitCode {
             .args(&cli.command[1..])
             .status()
             .unwrap();
-    } else if let Some(install) = cli.install {
-        run_with_wine(&expand_tilde(
-            &install.into_os_string().into_string().unwrap(),
-        ));
     } else if cli.setup {
         let mut command = vec![
             "winetricks",
@@ -217,6 +231,10 @@ fn main() -> ExitCode {
             .args(command[1..].iter().map(|s| expand_tilde(s)))
             .status()
             .unwrap();
+    } else if let Some(install) = cli.install {
+        run_with_wine(&expand_tilde(
+            &install.into_os_string().into_string().unwrap(),
+        ));
     } else if cli.winecfg {
         run_with_wine("winecfg");
     } else {
@@ -322,4 +340,29 @@ fn main() -> ExitCode {
 
 fn on_nixos() -> bool {
     Path::new("/etc/NIXOS").exists() && Path::new("/run/current-system/sw/bin/steam-run").exists()
+}
+
+fn download_wine(version: &str) -> Result<(), Box<dyn error::Error>> {
+    eprintln!("Downloading wine...");
+    {
+        let mut response = reqwest::blocking::get(format!("https://github.com/Kron4ek/Wine-Builds/releases/download/{version}/wine-{version}-staging-amd64-wow64.tar.xz"))?.error_for_status()?;
+        let mut downloaded =
+            File::create(format!("/tmp/wine-{version}-staging-amd64-wow64.tar.xz"))?;
+        response.copy_to(&mut downloaded)?;
+    }
+    {
+        let downloaded = File::open(format!("/tmp/wine-{version}-staging-amd64-wow64.tar.xz"))?;
+        let mut compressed = XzReader::new(downloaded, true);
+        let mut tar_file = File::create(format!("/tmp/wine-{version}-staging-amd64-wow64.tar"))?;
+        io::copy(&mut compressed, &mut tar_file)?;
+    }
+    fs::remove_file(format!("/tmp/wine-{version}-staging-amd64-wow64.tar.xz"))?;
+    {
+        let tar_file = File::open(format!("/tmp/wine-{version}-staging-amd64-wow64.tar"))?;
+        let mut archive = Archive::new(tar_file);
+        archive.unpack(expand_tilde("~/.local/share/ley/"))?;
+    }
+    fs::remove_file(format!("/tmp/wine-{version}-staging-amd64-wow64.tar"))?;
+    eprintln!("DONE");
+    Ok(())
 }
