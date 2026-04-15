@@ -7,12 +7,12 @@ description = "A simple game launcher"
 [dependencies]
 chrono = "0.4"
 clap = { version = "4.5", features = ["derive"] }
-lzma-rust2 = "0.15"
+lzma-rust2 = "0.16"
 openssl = { version = "*", features = ["vendored"] }
-reqwest = { version = "0.12", features = ["blocking"] }
-sysinfo = "0.37"
+reqwest = { version = "0.13", features = ["blocking"] }
+sysinfo = "0.38"
 tar = "0.4"
-toml = "0.9"
+toml = "1.0"
 
 [profile.release]
 panic = "abort"

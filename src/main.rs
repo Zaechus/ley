@@ -17,6 +17,8 @@ use toml::{Table, Value};
 use ley::{expand_tilde, log_playtime};
 
 // TODO: exclusive params
+// TODO: DRI_PRIME
+// TODO: vd= // /sys/class/drm/*/modes
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
@@ -30,6 +32,10 @@ struct Cli {
     /// Run setup commands in a wine prefix
     #[arg(long)]
     setup: bool,
+
+    /// Update a wine prefix
+    #[arg(long)]
+    update: bool,
 
     /// Run winecfg in a wine prefix
     #[arg(long)]
@@ -152,14 +158,17 @@ fn main() -> ExitCode {
     }
 
     if let Some(Value::String(exe)) = game.get("exe") {
-        let exe = expand_tilde(exe);
+        let exe_str = expand_tilde(exe);
+        let exe_path = Path::new(&exe_str);
 
-        let path = exe
-            .strip_suffix(Path::new(&exe).file_name().unwrap().to_str().unwrap())
-            .unwrap();
-        env::set_current_dir(path).ok();
+        if !exe_path.exists() {
+            eprintln!("exe `{exe}` does not exist...");
+            return ExitCode::FAILURE;
+        }
 
-        command.push(exe);
+        env::set_current_dir(exe_path.parent().unwrap().to_str().unwrap()).ok();
+
+        command.push(exe_str);
     }
 
     // dir option overrides exe path
@@ -215,10 +224,6 @@ fn main() -> ExitCode {
             "d3dx9",
         ];
 
-        if !pre.is_empty() {
-            command.insert(0, pre);
-        }
-
         if on_nixos() && env::var("WINE").as_deref() != Ok("wine") {
             command.insert(0, "steam-run");
         }
@@ -232,9 +237,20 @@ fn main() -> ExitCode {
             .status()
             .unwrap();
     } else if let Some(install) = cli.install {
-        run_with_wine(&expand_tilde(
-            &install.into_os_string().into_string().unwrap(),
-        ));
+        run_with_wine(install.to_str().unwrap());
+    } else if cli.update {
+        let wine = env::var("WINE");
+        let wine = wine.as_deref().unwrap_or("wine");
+        let mut command = vec![wine, "wineboot", "-u"];
+
+        if on_nixos() && wine != "wine" {
+            command.insert(0, "steam-run")
+        }
+
+        Command::new(command[0])
+            .args(&command[1..])
+            .status()
+            .unwrap();
     } else if cli.winecfg {
         run_with_wine("winecfg");
     } else {
