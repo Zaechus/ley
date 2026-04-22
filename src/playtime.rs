@@ -24,6 +24,7 @@ pub fn log_playtime(name: &str, seconds: u64) {
     )
     .unwrap();
 
+    fs::create_dir_all(expand_tilde("~/.local/share/ley")).unwrap();
     let _ = File::create_new(expand_tilde("~/.local/share/ley/data.toml"));
 
     let mut data_toml = fs::read_to_string(expand_tilde("~/.local/share/ley/data.toml"))
