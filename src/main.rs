@@ -26,15 +26,15 @@ struct Cli {
     name: Option<String>,
 
     /// Install an exe with wine
-    #[arg(long)]
+    #[arg(short, long)]
     install: Option<PathBuf>,
 
     /// Run setup commands in a wine prefix
-    #[arg(long)]
+    #[arg(short, long)]
     setup: bool,
 
     /// Update a wine prefix
-    #[arg(long)]
+    #[arg(short, long)]
     update: bool,
 
     /// Run winecfg in a wine prefix
