@@ -163,7 +163,6 @@ fn main() -> ExitCode {
 
         if !exe_path.exists() {
             eprintln!("exe `{exe}` does not exist...");
-            return ExitCode::FAILURE;
         }
 
         env::set_current_dir(exe_path.parent().unwrap().to_str().unwrap()).ok();
