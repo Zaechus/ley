@@ -75,6 +75,6 @@ fn plural(x: u64, word: &str) -> String {
     match x {
         0 => String::new(),
         1 => format!("1 {word}"),
-        _ => format!("{} {}s", &x, word),
+        _ => format!("{} {}s", x, word),
     }
 }

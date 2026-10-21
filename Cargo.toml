@@ -7,10 +7,10 @@ description = "A simple game launcher"
 [dependencies]
 chrono = "0.4"
 clap = { version = "4.5", features = ["derive"] }
-lzma-rust2 = "0.16"
+lzma-rust2 = "0.23"
 openssl = { version = "*", features = ["vendored"] }
 reqwest = { version = "0.13", features = ["blocking"] }
-sysinfo = "0.38"
+sysinfo = "0.39"
 tar = "0.4"
 toml = "1.0"
 
