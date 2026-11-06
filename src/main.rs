@@ -16,7 +16,6 @@ use toml::{Table, Value};
 
 use ley::{expand_tilde, log_playtime};
 
-// TODO: exclusive params
 // TODO: DRI_PRIME
 // TODO: vd= // /sys/class/drm/*/modes
 // TODO: DISPLAY= // xwayland or pure wayland
@@ -27,13 +26,13 @@ struct Cli {
     /// Game name
     name: Option<String>,
 
-    /// Install an exe with wine
-    #[arg(short, long)]
-    install: Option<PathBuf>,
-
     /// Run setup commands in a wine prefix
     #[arg(short, long)]
     setup: bool,
+
+    /// Install an exe with wine
+    #[arg(short, long)]
+    install: Option<PathBuf>,
 
     /// Update a wine prefix
     #[arg(short, long)]
@@ -105,22 +104,6 @@ fn main() -> ExitCode {
         }
     }
 
-    if let Some(Value::String(val)) = game.get("arch") {
-        unsafe {
-            if val == "win32" {
-                env::set_var("WINEARCH", "win32");
-            } else if val == "win64" {
-                env::set_var("WINEARCH", "win64");
-            } else {
-                env::remove_var("WINEARCH");
-            }
-        }
-    } else {
-        unsafe {
-            env::remove_var("WINEARCH");
-        }
-    }
-
     if let Some(Value::Boolean(val)) = game.get("esync") {
         unsafe {
             env::set_var("WINEESYNC", if *val { "1" } else { "0" });
@@ -157,6 +140,7 @@ fn main() -> ExitCode {
             eprintln!("{e}");
             return ExitCode::FAILURE;
         }
+
         if on_nixos() {
             command.insert(0, "steam-run".to_owned())
         }
@@ -171,11 +155,23 @@ fn main() -> ExitCode {
     } else if let Some(Value::String(val)) = game.get("runner") {
         let runner = expand_tilde(val);
         unsafe {
+            env::set_var("WINEARCH", "wow64");
             env::set_var("WINE", &runner);
         }
         command.push(runner);
     } else if on_nixos() {
         command.insert(0, "steam-run".to_owned());
+    }
+
+    if let Some(Value::String(val)) = game.get("arch") {
+        unsafe {
+            match val.as_str() {
+                "win32" => env::set_var("WINEARCH", "win32"),
+                "win64" => env::set_var("WINEARCH", "win64"),
+                "wow64" => env::set_var("WINEARCH", "wow64"),
+                _ => (),
+            }
+        }
     }
 
     if let Some(Value::String(exe)) = game.get("exe") {
@@ -335,12 +331,13 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
 
+        // FIXME: what if runner does not exist
         Command::new(&command[0])
             .args(&command[1..])
             .stdout(stdout_log)
             .stderr(stderr_log)
             .status()
-            .unwrap(); // FIXME: what if exe does not exist
+            .unwrap();
 
         // some Windows executables are launchers, so additionally track the winedevice.exe pid
         if let Some(Value::String(prefix)) = game.get("prefix") {
