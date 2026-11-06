@@ -19,6 +19,8 @@ use ley::{expand_tilde, log_playtime};
 // TODO: exclusive params
 // TODO: DRI_PRIME
 // TODO: vd= // /sys/class/drm/*/modes
+// TODO: DISPLAY= // xwayland or pure wayland
+// TODO: rework at least most uses of unsafe set_var
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
@@ -93,30 +95,46 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     };
 
-    env::set_var("WINE", "wine");
+    unsafe {
+        env::set_var("WINE", "wine");
+    }
 
     if !cfg!(debug_assertions) {
-        env::set_var("WINEDEBUG", "-all");
+        unsafe {
+            env::set_var("WINEDEBUG", "-all");
+        }
     }
 
     if let Some(Value::String(val)) = game.get("arch") {
-        if val == "win32" {
-            env::set_var("WINEARCH", "win32");
-        } else {
-            env::set_var("WINEARCH", "win64");
+        unsafe {
+            if val == "win32" {
+                env::set_var("WINEARCH", "win32");
+            } else if val == "win64" {
+                env::set_var("WINEARCH", "win64");
+            } else {
+                env::remove_var("WINEARCH");
+            }
         }
     } else {
-        env::set_var("WINEARCH", "win64");
+        unsafe {
+            env::remove_var("WINEARCH");
+        }
     }
 
     if let Some(Value::Boolean(val)) = game.get("esync") {
-        env::set_var("WINEESYNC", if *val { "1" } else { "0" });
+        unsafe {
+            env::set_var("WINEESYNC", if *val { "1" } else { "0" });
+        }
     } else {
-        env::set_var("WINEESYNC", "1");
+        unsafe {
+            env::set_var("WINEESYNC", "1");
+        }
     }
 
     if let Some(Value::String(val)) = game.get("prefix") {
-        env::set_var("WINEPREFIX", expand_tilde(val));
+        unsafe {
+            env::set_var("WINEPREFIX", expand_tilde(val));
+        }
     }
 
     let mut command = Vec::new();
@@ -134,11 +152,10 @@ fn main() -> ExitCode {
             "~/.local/share/ley/wine-{version}-staging-amd64-wow64"
         )))
         .exists()
+            && let Err(e) = download_wine(version)
         {
-            if let Err(e) = download_wine(version) {
-                eprintln!("{e}");
-                return ExitCode::FAILURE;
-            }
+            eprintln!("{e}");
+            return ExitCode::FAILURE;
         }
         if on_nixos() {
             command.insert(0, "steam-run".to_owned())
@@ -147,11 +164,15 @@ fn main() -> ExitCode {
         let bin = expand_tilde(&format!(
             "~/.local/share/ley/wine-{version}-staging-amd64-wow64/bin/wine"
         ));
-        env::set_var("WINE", &bin);
+        unsafe {
+            env::set_var("WINE", &bin);
+        }
         command.push(bin);
     } else if let Some(Value::String(val)) = game.get("runner") {
         let runner = expand_tilde(val);
-        env::set_var("WINE", &runner);
+        unsafe {
+            env::set_var("WINE", &runner);
+        }
         command.push(runner);
     } else if on_nixos() {
         command.insert(0, "steam-run".to_owned());
@@ -182,9 +203,13 @@ fn main() -> ExitCode {
     if let Some(Value::Table(vars)) = game.get("env") {
         for (k, v) in vars {
             if let Value::Integer(i) = v {
-                env::set_var(k, i.to_string());
+                unsafe {
+                    env::set_var(k, i.to_string());
+                }
             } else {
-                env::set_var(k, v.as_str().unwrap());
+                unsafe {
+                    env::set_var(k, v.as_str().unwrap());
+                }
             }
         }
     };
@@ -208,12 +233,7 @@ fn main() -> ExitCode {
             .unwrap();
     };
 
-    if !cli.command.is_empty() {
-        Command::new(&cli.command[0])
-            .args(&cli.command[1..])
-            .status()
-            .unwrap();
-    } else if cli.setup {
+    if cli.setup {
         let mut command = vec![
             "winetricks",
             "-q",
@@ -233,6 +253,13 @@ fn main() -> ExitCode {
 
         Command::new(command[0])
             .args(command[1..].iter().map(|s| expand_tilde(s)))
+            .status()
+            .unwrap();
+    }
+
+    if !cli.command.is_empty() {
+        Command::new(&cli.command[0])
+            .args(&cli.command[1..])
             .status()
             .unwrap();
     } else if let Some(install) = cli.install {
@@ -313,14 +340,15 @@ fn main() -> ExitCode {
             .stdout(stdout_log)
             .stderr(stderr_log)
             .status()
-            .unwrap();
+            .unwrap(); // FIXME: what if exe does not exist
 
         // some Windows executables are launchers, so additionally track the winedevice.exe pid
         if let Some(Value::String(prefix)) = game.get("prefix") {
             let mut sys =
                 System::new_with_specifics(RefreshKind::nothing().with_processes(
                     ProcessRefreshKind::nothing().with_cwd(UpdateKind::OnlyIfNotSet),
-                ));
+                ))
+                .unwrap();
             if let Some((winedevice_pid, _)) = sys.processes().iter().find(|(_, process)| {
                 if let Some(cwd) = process.cwd() {
                     process.name() == "winedevice.exe"
