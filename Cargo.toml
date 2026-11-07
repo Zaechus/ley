@@ -15,5 +15,7 @@ tar = "0.4"
 toml = "1.0"
 
 [profile.release]
+codegen-units = 1
+lto = true
 panic = "abort"
 strip = true

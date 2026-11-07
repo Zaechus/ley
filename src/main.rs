@@ -19,7 +19,6 @@ use ley::{expand_tilde, log_playtime};
 // TODO: DRI_PRIME
 // TODO: vd= // /sys/class/drm/*/modes
 // TODO: DISPLAY= // xwayland or pure wayland
-// TODO: rework at least most uses of unsafe set_var
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
@@ -178,18 +177,25 @@ fn main() -> ExitCode {
         let exe_str = expand_tilde(exe);
         let exe_path = Path::new(&exe_str);
 
-        if !exe_path.exists() {
+        if exe_path.exists() {
+            env::set_current_dir(exe_path.parent().unwrap().to_str().unwrap()).ok();
+        } else {
             eprintln!("exe `{exe}` does not exist...");
         }
-
-        env::set_current_dir(exe_path.parent().unwrap().to_str().unwrap()).ok();
 
         command.push(exe_str);
     }
 
     // dir option overrides exe path
     if let Some(Value::String(dir)) = game.get("dir") {
-        env::set_current_dir(expand_tilde(dir)).unwrap();
+        let dir_str = expand_tilde(dir);
+        let cwd = Path::new(&dir_str);
+
+        if cwd.exists() {
+            env::set_current_dir(cwd).unwrap();
+        } else {
+            eprintln!("directory `{dir}` does not exist...");
+        }
     }
 
     if let Some(Value::Array(val)) = game.get("args") {
@@ -331,13 +337,17 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
 
-        // FIXME: what if runner does not exist
-        Command::new(&command[0])
+        if Command::new(&command[0])
             .args(&command[1..])
             .stdout(stdout_log)
             .stderr(stderr_log)
             .status()
-            .unwrap();
+            .is_err()
+        {
+            _ = fs::remove_file(expand_tilde(&format!("~/.cache/ley/{name}.lck")));
+            eprintln!("{name} failed to start.");
+            return ExitCode::FAILURE;
+        }
 
         // some Windows executables are launchers, so additionally track the winedevice.exe pid
         if let Some(Value::String(prefix)) = game.get("prefix") {
