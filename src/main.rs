@@ -16,9 +16,7 @@ use toml::{Table, Value};
 
 use ley::{expand_tilde, log_playtime};
 
-// TODO: DRI_PRIME
 // TODO: vd= // /sys/class/drm/*/modes
-// TODO: DISPLAY= // xwayland or pure wayland
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
@@ -72,16 +70,16 @@ fn main() -> ExitCode {
         name
     } else {
         for (name, game) in config {
-            let game_installed = if let Some(Value::String(dir)) = game.get("dir") {
+            let game_installed = if let Some(Value::String(exe)) = game.get("exe") {
+                Path::new(&expand_tilde(exe)).is_file()
+            } else if let Some(Value::String(dir)) = game.get("dir") {
                 Path::new(&expand_tilde(dir)).is_dir()
-            } else if let Some(Value::String(exe)) = game.get("exe") {
-                Path::new(&expand_tilde(exe)).exists()
             } else {
                 false
             };
 
             if game_installed {
-                println!("{name}"); // TODO: installed size and playtime as a table
+                println!("{name}");
             }
         }
         return ExitCode::SUCCESS;
@@ -110,6 +108,16 @@ fn main() -> ExitCode {
     } else {
         unsafe {
             env::set_var("WINEESYNC", "1");
+        }
+    }
+
+    if let Some(Value::Boolean(val)) = game.get("wayland")
+        && *val
+    {
+        unsafe {
+            env::set_var("SDL_VIDEODRIVER", "wayland");
+            env::set_var("SDL_VIDEO_DRIVER", "wayland");
+            env::remove_var("DISPLAY");
         }
     }
 
