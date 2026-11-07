@@ -187,8 +187,9 @@ fn main() -> ExitCode {
 
         if exe_path.exists() {
             env::set_current_dir(exe_path.parent().unwrap().to_str().unwrap()).ok();
-        } else {
+        } else if !(cli.setup || cli.install.is_some()) {
             eprintln!("exe `{exe}` does not exist...");
+            return ExitCode::FAILURE;
         }
 
         command.push(exe_str);
@@ -201,8 +202,9 @@ fn main() -> ExitCode {
 
         if cwd.exists() {
             env::set_current_dir(cwd).unwrap();
-        } else {
+        } else if !(cli.setup || cli.install.is_some()) {
             eprintln!("directory `{dir}` does not exist...");
+            return ExitCode::FAILURE;
         }
     }
 
