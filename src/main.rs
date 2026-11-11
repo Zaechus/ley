@@ -16,7 +16,6 @@ use toml::{Table, Value};
 
 use ley::{expand_tilde, log_playtime};
 
-// TODO: vd= // /sys/class/drm/*/modes
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
@@ -101,9 +100,9 @@ fn main() -> ExitCode {
         }
     }
 
-    if let Some(Value::Boolean(val)) = game.get("esync") {
+    if let Some(Value::Boolean(esync)) = game.get("esync") {
         unsafe {
-            env::set_var("WINEESYNC", if *val { "1" } else { "0" });
+            env::set_var("WINEESYNC", if *esync { "1" } else { "0" });
         }
     } else {
         unsafe {
@@ -294,17 +293,15 @@ fn main() -> ExitCode {
     } else {
         if env::var("XDG_CURRENT_DESKTOP").as_deref() == Ok("sway") {
             match (
+                cli.scale,
                 game.get("res").is_some(),
                 game.get("scale").is_some(),
-                cli.scale,
             ) {
-                (_, true, true) | (false, true, _) => {
+                (true, _, true) | (_, false, true) => {
                     if let Some(Value::String(scale)) = game.get("scale") {
                         Command::new("swaymsg")
                             .args(["output", "-", "scale", scale])
-                            .spawn()
-                            .unwrap()
-                            .wait()
+                            .status()
                             .unwrap();
                     }
                 }
@@ -312,9 +309,7 @@ fn main() -> ExitCode {
                     if let Some(Value::String(res)) = game.get("res") {
                         Command::new("swaymsg")
                             .args(["output", "-", "mode", res])
-                            .spawn()
-                            .unwrap()
-                            .wait()
+                            .status()
                             .unwrap();
                     }
                 }
@@ -328,9 +323,38 @@ fn main() -> ExitCode {
                         "pointer_accel",
                         &format!("'{accel}'"),
                     ])
-                    .spawn()
-                    .unwrap()
-                    .wait()
+                    .status()
+                    .unwrap();
+            }
+
+            if let Some(Value::Boolean(tearing)) = game.get("tearing") {
+                if *tearing {
+                    Command::new("swaymsg")
+                        .args(["output", "-", "max_render_time", "off"])
+                        .status()
+                        .unwrap();
+                }
+                Command::new("swaymsg")
+                    .args([
+                        "output",
+                        "-",
+                        "allow_tearing",
+                        if *tearing { "yes" } else { "no" },
+                    ])
+                    .status()
+                    .unwrap();
+            }
+
+            if let Some(Value::Integer(mrt)) = game.get("max_render_time") {
+                let mrt = if *mrt < 1 { "off" } else { &mrt.to_string() };
+                Command::new("swaymsg")
+                    .args(["output", "-", "max_render_time", mrt])
+                    .status()
+                    .unwrap();
+            } else if let Some(Value::Boolean(false)) = game.get("max_render_time") {
+                Command::new("swaymsg")
+                    .args(["output", "-", "max_render_time", "off"])
+                    .status()
                     .unwrap();
             }
         }
