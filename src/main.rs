@@ -1,7 +1,7 @@
 use std::{
     env, error,
     fs::{self, File},
-    io,
+    io::{self, BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Command, ExitCode},
     thread,
@@ -266,6 +266,31 @@ fn main() -> ExitCode {
             .args(command[1..].iter().map(|s| expand_tilde(s)))
             .status()
             .unwrap();
+
+        // Maintain aspect ratio if ddraw.ini exists
+        let ddraw_ini = Path::new(&env::var("WINEPREFIX").unwrap_or(expand_tilde("~/.wine")))
+            .join("drive_c/windows/syswow64/ddraw.ini");
+        if ddraw_ini.exists() {
+            let bakpath = ddraw_ini.with_extension("ini.bak");
+            if !bakpath.exists() {
+                fs::copy(&ddraw_ini, bakpath).unwrap();
+            }
+
+            let tmppath = ddraw_ini.with_extension("ini.tmp");
+            let mut tmpfile = File::create(&tmppath).unwrap();
+            let mut reader = BufReader::new(File::open(&ddraw_ini).unwrap());
+            for l in (&mut reader).lines().map_while(Result::ok) {
+                if l.starts_with("maintas") {
+                    write!(&mut tmpfile, "maintas=true\r\n").unwrap();
+                    break;
+                }
+                write!(&mut tmpfile, "{}\r\n", l).unwrap();
+            }
+            for l in reader.lines().map_while(Result::ok) {
+                write!(&mut tmpfile, "{}\r\n", l).unwrap();
+            }
+            fs::rename(tmppath, ddraw_ini).unwrap();
+        }
     }
 
     if !cli.command.is_empty() {
