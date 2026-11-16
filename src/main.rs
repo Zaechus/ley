@@ -100,17 +100,23 @@ fn main() -> ExitCode {
         }
     }
 
-    if let Some(Value::Boolean(esync)) = game.get("esync") {
+    if !Path::new("/dev/ntsync").exists() {
         unsafe {
-            env::set_var("WINEESYNC", if *esync { "1" } else { "0" });
+            env::set_var("WINEESYNC", "1");
         }
-    }
 
-    if let Some(Value::Boolean(fsync)) = game.get("fsync") {
-        unsafe {
-            if *fsync {
-                env::remove_var("WINEESYNC");
-                env::set_var("WINEFSYNC", "1");
+        if let Some(Value::Boolean(esync)) = game.get("esync") {
+            unsafe {
+                env::set_var("WINEESYNC", if *esync { "1" } else { "0" });
+            }
+        }
+
+        if let Some(Value::Boolean(fsync)) = game.get("fsync") {
+            unsafe {
+                if *fsync {
+                    env::remove_var("WINEESYNC");
+                    env::set_var("WINEFSYNC", "1");
+                }
             }
         }
     }
