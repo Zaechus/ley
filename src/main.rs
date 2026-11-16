@@ -104,9 +104,14 @@ fn main() -> ExitCode {
         unsafe {
             env::set_var("WINEESYNC", if *esync { "1" } else { "0" });
         }
-    } else {
+    }
+
+    if let Some(Value::Boolean(fsync)) = game.get("fsync") {
         unsafe {
-            env::set_var("WINEESYNC", "1");
+            if *fsync {
+                env::remove_var("WINEESYNC");
+                env::set_var("WINEFSYNC", "1");
+            }
         }
     }
 
@@ -114,9 +119,9 @@ fn main() -> ExitCode {
         && *val
     {
         unsafe {
+            env::remove_var("DISPLAY");
             env::set_var("SDL_VIDEODRIVER", "wayland");
             env::set_var("SDL_VIDEO_DRIVER", "wayland");
-            env::remove_var("DISPLAY");
         }
     }
 
@@ -248,10 +253,11 @@ fn main() -> ExitCode {
         let mut command = vec![
             "winetricks",
             "-q",
-            "dxvk",
             "d3dcompiler_43",
             "d3dcompiler_47",
             "d3dx9",
+            "dxvk",
+            "mimeassoc=off",
         ];
 
         if on_nixos() && env::var("WINE").as_deref() != Ok("wine") {
