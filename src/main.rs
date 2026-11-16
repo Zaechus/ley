@@ -1,7 +1,7 @@
 use std::{
     env, error,
     fs::{self, File},
-    io::{self, BufRead, BufReader, Write},
+    io::{self, BufRead, BufReader, BufWriter, Write},
     path::{Path, PathBuf},
     process::{Command, ExitCode},
     thread,
@@ -289,7 +289,7 @@ fn main() -> ExitCode {
             }
 
             let tmppath = ddraw_ini.with_extension("ini.tmp");
-            let mut tmpfile = File::create(&tmppath).unwrap();
+            let mut tmpfile = BufWriter::new(File::create(&tmppath).unwrap());
             let mut reader = BufReader::new(File::open(&ddraw_ini).unwrap());
             for l in (&mut reader).lines().map_while(Result::ok) {
                 if l.starts_with("maintas") {
