@@ -396,6 +396,20 @@ fn main() -> ExitCode {
             }
         }
 
+        let xephyr = if let Some(Value::String(val)) = game.get("xephyr") {
+            Command::new("Xephyr")
+                .args([":1", "-br", "-ac", "-screen", val, "-reset", "-terminate"])
+                .spawn()
+        } else {
+            Err(io::Error::from(io::ErrorKind::NotFound))
+        };
+
+        if xephyr.is_ok() {
+            unsafe {
+                env::set_var("DISPLAY", ":1");
+            }
+        }
+
         fs::create_dir_all(expand_tilde("~/.cache/ley/")).expect("error creating cache directory");
         let stdout_log =
             File::create(expand_tilde("~/.cache/ley/stdout.log")).expect("error creating log file");
@@ -416,6 +430,9 @@ fn main() -> ExitCode {
             .is_err()
         {
             _ = fs::remove_file(expand_tilde(&format!("~/.cache/ley/{name}.lck")));
+            if let Ok(mut child) = xephyr {
+                child.wait().unwrap();
+            }
             eprintln!("{name} failed to start.");
             return ExitCode::FAILURE;
         }
@@ -453,6 +470,10 @@ fn main() -> ExitCode {
         let seconds = now.elapsed().as_secs();
         if seconds > 119 {
             log_playtime(name, seconds);
+        }
+
+        if let Ok(mut child) = xephyr {
+            child.wait().unwrap();
         }
     }
 
