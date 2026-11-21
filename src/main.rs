@@ -137,13 +137,12 @@ fn main() -> ExitCode {
         }
     }
 
-    let mut command = Vec::new();
-
-    let pre = if let Some(Value::String(pre)) = game.get("pre") {
-        command.push(pre.clone());
-        pre
+    let mut command = if let Some(Value::Array(arr)) = game.get("pre") {
+        arr.iter().map(|v| v.as_str().unwrap().to_owned()).collect()
+    } else if let Some(Value::String(pre)) = game.get("pre") {
+        vec![pre.to_owned()]
     } else {
-        ""
+        Vec::new()
     };
 
     if let Some(Value::String(version)) = game.get("wine") {
@@ -241,10 +240,6 @@ fn main() -> ExitCode {
         let wine = wine.as_deref().unwrap_or("wine");
         let mut command = vec![wine, cmd];
 
-        if !pre.is_empty() {
-            command.insert(0, pre)
-        };
-
         if on_nixos() && wine != "wine" {
             command.insert(0, "steam-run")
         }
@@ -256,7 +251,7 @@ fn main() -> ExitCode {
     };
 
     if cli.setup {
-        let mut command = vec![
+        let mut winetricks = vec![
             "winetricks",
             "-q",
             "d3dcompiler_43",
@@ -267,15 +262,15 @@ fn main() -> ExitCode {
         ];
 
         if on_nixos() && env::var("WINE").as_deref() != Ok("wine") {
-            command.insert(0, "steam-run");
+            winetricks.insert(0, "steam-run");
         }
 
         if let Some(Value::Array(arr)) = game.get("winetricks") {
-            command.extend(arr.iter().map(|v| v.as_str().unwrap()));
+            winetricks.extend(arr.iter().map(|v| v.as_str().unwrap()));
         }
 
-        Command::new(command[0])
-            .args(command[1..].iter().map(|s| expand_tilde(s)))
+        Command::new(winetricks[0])
+            .args(winetricks[1..].iter().map(|s| expand_tilde(s)))
             .status()
             .unwrap();
 
