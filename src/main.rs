@@ -431,7 +431,7 @@ fn main() -> ExitCode {
         {
             _ = fs::remove_file(expand_tilde(&format!("~/.cache/ley/{name}.lck")));
             if let Ok(mut child) = xephyr {
-                child.wait().unwrap();
+                child.kill().unwrap();
             }
             eprintln!("{name} failed to start.");
             return ExitCode::FAILURE;
